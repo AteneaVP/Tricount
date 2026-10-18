@@ -27,6 +27,7 @@ body {
 }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
+button:disabled { cursor: wait; }
 .app {
   max-width: 680px;
   min-height: 100vh;
@@ -121,9 +122,7 @@ input, select {
   outline: none;
   color: var(--text);
 }
-input:focus, select:focus {
-  border-color: var(--primary);
-}
+input:focus, select:focus { border-color: var(--primary); }
 .group-item {
   display: flex;
   align-items: center;
@@ -229,6 +228,21 @@ input:focus, select:focus {
 .hidden { display: none !important; }
 .auth-wrap { max-width: 430px; margin: 35px auto; }
 .auth-logo { text-align: center; margin-bottom: 28px; }
+.member-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.member-actions .btn { flex-shrink: 0; }
+.member-row { min-width: 0; }
+.member-row .expense-info { min-width: 0; }
+@media(max-width:420px) {
+  .member-actions .btn.small-btn {
+    padding: 8px;
+    font-size: 12px;
+  }
+  .app { padding-left: 13px; padding-right: 13px; }
+}
 @media(min-width:600px) {
   .app { padding-top: 30px; }
   .hero { padding: 30px; }
@@ -386,18 +400,19 @@ input:focus, select:focus {
     </div>
     <button class="btn small-btn" onclick="openNewExpense(currentGroupId)">+ Gasto</button>
   </div>
+
   <div class="card">
     <h2>Gastos del grupo</h2>
     <div id="detailExpenses"></div>
   </div>
 
-  <!-- MIEMBROS: incluye el botón Añadir -->
   <div class="card">
     <div class="row">
       <h2>Miembros</h2>
       <button class="btn secondary small-btn" id="addMemberButton" onclick="showAddMember()">+ Añadir</button>
     </div>
     <div id="detailMembers"></div>
+
     <div id="addMemberForm" class="hidden">
       <div class="form-group">
         <label for="memberEmail">Correo electrónico del usuario</label>
@@ -410,7 +425,8 @@ input:focus, select:focus {
   </div>
 
   <button class="btn danger full" id="deleteGroupButton" onclick="deleteGroup()">Eliminar grupo</button>
-  <p class="small">Solo el propietario puede eliminar el grupo.</p>
+  <button class="btn danger full hidden" id="leaveGroupButton" onclick="leaveGroup(currentGroupId)" style="margin-top:10px">Salir del grupo</button>
+  <p class="small" id="groupActionHelp">Solo el propietario puede eliminar el grupo.</p>
 </section>
 </div>
 
@@ -422,7 +438,6 @@ input:focus, select:focus {
 </nav>
 
 <script>
-// CONFIGURACIÓN SUPABASE
 const SUPABASE_URL = "https://spylscxfjfwlkqfiadme.supabase.co";
 const SUPABASE_KEY = "sb_publishable_aTl7NmeefT8NNZLPfm4EQw_FdY_AVfE";
 
@@ -456,7 +471,9 @@ function showMessage(message, type = "success", target = "globalMessage") {
   el.textContent = message;
   el.className = "notice" + (type === "error" ? " error" : type === "success" ? " success" : "");
   el.classList.remove("hidden");
-  if (target === "globalMessage") setTimeout(() => el.classList.add("hidden"), 6000);
+  if (target === "globalMessage") {
+    setTimeout(() => el.classList.add("hidden"), 6000);
+  }
 }
 
 function clearMessage(target = "globalMessage") {
@@ -474,17 +491,22 @@ function setBusy(value) {
 function showScreen(name) {
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   if ($(name + "Screen")) $(name + "Screen").classList.add("active");
+
   $("bottomNav").classList.toggle("hidden", name === "auth" || !currentUser);
-  document.querySelectorAll(".nav-btn").forEach(button =>
-    button.classList.toggle("active", button.dataset.screen === name)
-  );
+
+  document.querySelectorAll(".nav-btn").forEach(button => {
+    button.classList.toggle("active", button.dataset.screen === name);
+  });
+
   clearMessage();
 
   if (name === "profile" && currentUser) {
     $("profileName").value = currentProfileName;
     $("profileEmail").value = currentUser.email || "";
   }
+
   if (name === "newExpense") populateExpenseGroups();
+
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -500,22 +522,38 @@ function requireSupabase() {
 // AUTENTICACIÓN
 async function signup() {
   if (!requireSupabase()) return;
+
   const email = $("authEmail").value.trim();
   const password = $("authPassword").value;
   const name = $("authName").value.trim();
 
-  if (!email || !password) return showMessage("Introduce tu correo y contraseña.", "error", "authMessage");
-  if (password.length < 6) return showMessage("La contraseña debe tener al menos 6 caracteres.", "error", "authMessage");
+  if (!email || !password) {
+    return showMessage("Introduce tu correo y contraseña.", "error", "authMessage");
+  }
+
+  if (password.length < 6) {
+    return showMessage("La contraseña debe tener al menos 6 caracteres.", "error", "authMessage");
+  }
 
   setBusy(true);
   try {
     const { data, error } = await db.auth.signUp({
-      email, password,
+      email,
+      password,
       options: { data: { display_name: name || email.split("@")[0] } }
     });
+
     if (error) throw error;
-    if (data.session) await handleSession(data.session);
-    else showMessage("Cuenta creada. Revisa tu correo para confirmar el registro y después inicia sesión.", "success", "authMessage");
+
+    if (data.session) {
+      await handleSession(data.session);
+    } else {
+      showMessage(
+        "Cuenta creada. Revisa tu correo para confirmar el registro y después inicia sesión.",
+        "success",
+        "authMessage"
+      );
+    }
   } catch (e) {
     showMessage(e.message, "error", "authMessage");
   } finally {
@@ -525,9 +563,13 @@ async function signup() {
 
 async function login() {
   if (!requireSupabase()) return;
+
   const email = $("authEmail").value.trim();
   const password = $("authPassword").value;
-  if (!email || !password) return showMessage("Introduce tu correo y contraseña.", "error", "authMessage");
+
+  if (!email || !password) {
+    return showMessage("Introduce tu correo y contraseña.", "error", "authMessage");
+  }
 
   setBusy(true);
   try {
@@ -543,6 +585,7 @@ async function login() {
 
 async function resetPassword() {
   if (!requireSupabase()) return;
+
   const email = $("authEmail").value.trim();
   if (!email) return showMessage("Escribe tu correo primero.", "error", "authMessage");
 
@@ -551,8 +594,14 @@ async function resetPassword() {
     const { error } = await db.auth.resetPasswordForEmail(email, {
       redirectTo: location.href.split("#")[0]
     });
+
     if (error) throw error;
-    showMessage("Si el correo está registrado, recibirás instrucciones para cambiar la contraseña.", "success", "authMessage");
+
+    showMessage(
+      "Si el correo está registrado, recibirás instrucciones para cambiar la contraseña.",
+      "success",
+      "authMessage"
+    );
   } catch (e) {
     showMessage(e.message, "error", "authMessage");
   } finally {
@@ -562,37 +611,45 @@ async function resetPassword() {
 
 async function logout() {
   if (!db) return;
+
   const { error } = await db.auth.signOut();
   if (error) return showMessage(error.message, "error");
+
   currentUser = null;
   currentGroupId = null;
   groups = [];
   expenses = [];
   memberships = [];
+
   showScreen("auth");
 }
 
 async function handleSession(session) {
   currentUser = session?.user || null;
+
   if (!currentUser) {
     groups = [];
     expenses = [];
     memberships = [];
+    currentGroupId = null;
     showScreen("auth");
     return;
   }
 
   currentProfileName = currentUser.user_metadata?.display_name ||
     currentUser.email?.split("@")[0] || "Usuario";
+
   $("topAvatar").textContent = (currentProfileName[0] || "T").toUpperCase();
   $("welcomeText").textContent = "¡Hola, " + currentProfileName + "!";
+
   showScreen("home");
   await loadData();
 }
 
-// CARGA DE DATOS: carga las membresías de todos los miembros de tus grupos.
+// CARGA DE DATOS
 async function loadData() {
   if (!currentUser || !db || loading) return;
+
   setBusy(true);
 
   try {
@@ -600,6 +657,7 @@ async function loadData() {
       .from("group_members")
       .select("group_id,user_id,display_name,joined_at")
       .eq("user_id", currentUser.id);
+
     if (myError) throw myError;
 
     const groupIds = [...new Set((myRows || []).map(row => row.group_id))];
@@ -616,6 +674,7 @@ async function loadData() {
       .from("group_members")
       .select("group_id,user_id,display_name,joined_at")
       .in("group_id", groupIds);
+
     if (memberError) throw memberError;
     memberships = memberRows || [];
 
@@ -624,6 +683,7 @@ async function loadData() {
       .select("id,name,emoji,owner_id,created_at")
       .in("id", groupIds)
       .order("created_at", { ascending: false });
+
     if (groupError) throw groupError;
     groups = groupRows || [];
 
@@ -632,8 +692,13 @@ async function loadData() {
       .select("id,group_id,title,amount,payer_id,created_by,created_at")
       .in("group_id", groupIds)
       .order("created_at", { ascending: false });
+
     if (expenseError) throw expenseError;
     expenses = expenseRows || [];
+
+    if (currentGroupId && !groups.some(g => g.id === currentGroupId)) {
+      currentGroupId = null;
+    }
 
     renderAll();
   } catch (e) {
@@ -647,7 +712,10 @@ function renderAll() {
   renderHome();
   renderGroups();
   renderActivity();
-  if (currentGroupId) renderGroupDetail(currentGroupId);
+
+  if (currentGroupId) {
+    renderGroupDetail(currentGroupId);
+  }
 }
 
 function groupExpenses(id) {
@@ -661,46 +729,74 @@ function groupMembers(id) {
 function myGroupBalance(id) {
   const members = groupMembers(id);
   const rows = groupExpenses(id);
+
   if (!members.length) return 0;
+
   const total = rows.reduce((sum, e) => sum + Number(e.amount), 0);
-  const paid = rows.filter(e => e.payer_id === currentUser.id)
+  const paid = rows
+    .filter(e => e.payer_id === currentUser.id)
     .reduce((sum, e) => sum + Number(e.amount), 0);
+
   return paid - total / members.length;
 }
 
 function renderHome() {
   const balance = groups.reduce((sum, g) => sum + myGroupBalance(g.id), 0);
+
   $("totalBalance").textContent = money(balance);
   $("totalBalance").className = "balance " + (balance >= 0 ? "" : "negative");
 
   $("homeGroups").innerHTML = groups.length
     ? groups.slice(0, 4).map(groupCard).join("")
-    : emptyState("🧳", "Empieza creando un grupo", "Organiza tus gastos con amigos.", "showScreen('newGroup')");
+    : emptyState(
+        "🧳",
+        "Empieza creando un grupo",
+        "Organiza tus gastos con amigos.",
+        "showScreen('newGroup')"
+      );
 
   $("homeExpenses").innerHTML = expenses.length
     ? expenses.slice(0, 5).map(expenseCard).join("")
-    : emptyState("🧾", "Aún no hay gastos", "Añade el primer gasto de tu grupo.", "openNewExpense()");
+    : emptyState(
+        "🧾",
+        "Aún no hay gastos",
+        "Añade el primer gasto de tu grupo.",
+        "openNewExpense()"
+      );
 }
 
 function renderGroups() {
   $("groupsList").innerHTML = groups.length
     ? groups.map(groupCard).join("")
-    : emptyState("👥", "Todavía no tienes grupos", "Crea un grupo para empezar.", "showScreen('newGroup')");
+    : emptyState(
+        "👥",
+        "Todavía no tienes grupos",
+        "Crea un grupo para empezar.",
+        "showScreen('newGroup')"
+      );
 }
 
 function renderActivity() {
   $("activityList").innerHTML = expenses.length
     ? expenses.map(expenseCard).join("")
-    : emptyState("📊", "Sin actividad", "Tus gastos aparecerán aquí.", "openNewExpense()");
+    : emptyState(
+        "📊",
+        "Sin actividad",
+        "Tus gastos aparecerán aquí.",
+        "openNewExpense()"
+      );
 }
 
 function groupCard(g) {
   const count = groupMembers(g.id).length;
   const balance = myGroupBalance(g.id);
+
   return `<div class="group-item" onclick="openGroup('${g.id}')">
     <div class="group-emoji">${escapeHTML(g.emoji || "👥")}</div>
-    <div class="group-info"><strong>${escapeHTML(g.name)}</strong>
-    <span>${count} miembro${count === 1 ? "" : "s"} · ${groupExpenses(g.id).length} gastos</span></div>
+    <div class="group-info">
+      <strong>${escapeHTML(g.name)}</strong>
+      <span>${count} miembro${count === 1 ? "" : "s"} · ${groupExpenses(g.id).length} gastos</span>
+    </div>
     <div class="amount ${balance >= 0 ? "positive" : "negative"}">${money(balance)}</div>
   </div>`;
 }
@@ -708,55 +804,79 @@ function groupCard(g) {
 function expenseCard(e) {
   const g = groups.find(x => x.id === e.group_id);
   const payer = groupMembers(e.group_id).find(m => m.user_id === e.payer_id);
+
   const payerName = payer?.display_name ||
     (e.payer_id === currentUser?.id ? currentProfileName : "Miembro");
+
   const date = new Date(e.created_at).toLocaleDateString("es-ES", {
-    day: "numeric", month: "short"
+    day: "numeric",
+    month: "short"
   });
+
   return `<div class="expense-item">
     <div class="expense-icon">🧾</div>
-    <div class="expense-info"><strong>${escapeHTML(e.title)}</strong>
-    <span>${escapeHTML(g?.name || "Grupo")} · Pagó ${escapeHTML(payerName)} · ${date}</span></div>
+    <div class="expense-info">
+      <strong>${escapeHTML(e.title)}</strong>
+      <span>${escapeHTML(g?.name || "Grupo")} · Pagó ${escapeHTML(payerName)} · ${date}</span>
+    </div>
     <div class="amount">${money(e.amount)}</div>
   </div>`;
 }
 
 function emptyState(emoji, title, description, action) {
-  return `<div class="empty"><div class="emoji">${emoji}</div>
-    <h3>${escapeHTML(title)}</h3><p>${escapeHTML(description)}</p>
-    <button class="btn secondary small-btn" onclick="${action}">Empezar</button></div>`;
+  return `<div class="empty">
+    <div class="emoji">${emoji}</div>
+    <h3>${escapeHTML(title)}</h3>
+    <p>${escapeHTML(description)}</p>
+    <button class="btn secondary small-btn" onclick="${action}">Empezar</button>
+  </div>`;
 }
 
 // CREAR GRUPO
 function chooseEmoji(emoji) {
   selectedEmoji = emoji;
-  document.querySelectorAll(".emoji-option").forEach(b =>
-    b.classList.toggle("selected", b.dataset.emoji === emoji)
-  );
+
+  document.querySelectorAll(".emoji-option").forEach(b => {
+    b.classList.toggle("selected", b.dataset.emoji === emoji);
+  });
 }
 
 async function createGroup() {
   if (!currentUser) return showScreen("auth");
+
   const name = $("groupName").value.trim();
   if (!name) return showMessage("Escribe un nombre para el grupo.", "error");
 
   setBusy(true);
+
   try {
     const { data, error } = await db.rpc("create_group", {
       group_name: name,
       group_emoji: selectedEmoji
     });
+
     if (error) throw error;
 
     $("groupName").value = "";
+
     const id = typeof data === "string" ? data : data?.id;
+
     await loadData();
+
     if (id) currentGroupId = id;
-    showMessage("Grupo creado correctamente.");
-    if (currentGroupId) openGroup(currentGroupId);
-    else showScreen("groups");
+
+    if (currentGroupId) {
+      openGroup(currentGroupId);
+      showMessage("Grupo creado correctamente.");
+    } else {
+      showScreen("groups");
+      showMessage("Grupo creado. Si no aparece, actualiza la lista.");
+    }
   } catch (e) {
-    showMessage("No se pudo crear el grupo. Comprueba que existe la función SQL create_group. " + e.message, "error");
+    showMessage(
+      "No se pudo crear el grupo. Comprueba que existe la función SQL create_group. " + e.message,
+      "error"
+    );
   } finally {
     setBusy(false);
   }
@@ -771,38 +891,67 @@ function openGroup(id) {
 
 function renderGroupDetail(id) {
   const g = groups.find(x => x.id === id);
-  if (!g) return;
+  if (!g || !currentUser) return;
+
+  const isOwner = g.owner_id === currentUser.id;
+  const ms = groupMembers(id);
+  const es = groupExpenses(id);
 
   $("detailEmoji").textContent = g.emoji || "👥";
   $("detailName").textContent = g.name;
-  $("detailMeta").textContent = groupMembers(id).length + " miembros · " + groupExpenses(id).length + " gastos";
+  $("detailMeta").textContent =
+    ms.length + " miembros · " + es.length + " gastos";
 
-  const es = groupExpenses(id);
   $("detailExpenses").innerHTML = es.length
     ? es.map(expenseCard).join("")
     : '<div class="empty"><div class="emoji">🧾</div><p>Aún no hay gastos en este grupo.</p></div>';
 
-  const ms = groupMembers(id);
   $("detailMembers").innerHTML = ms.length
-    ? ms.map(m => `<div class="expense-item">
-        <div class="avatar">${escapeHTML((m.display_name || "?")[0].toUpperCase())}</div>
-        <div class="expense-info"><strong>${escapeHTML(m.display_name || "Miembro")}</strong>
-        <span>${m.user_id === g.owner_id ? "Propietario" : "Miembro"}</span></div>
-      </div>`).join("")
-    : '<p class="muted">No se encontraron miembros.</p>';
+    ? ms.map(m => {
+        const isMemberOwner = m.user_id === g.owner_id;
+        const isMe = m.user_id === currentUser.id;
 
-  $("deleteGroupButton").classList.toggle("hidden", g.owner_id !== currentUser.id);
-  $("addMemberButton").classList.toggle("hidden", g.owner_id !== currentUser.id);
-  if (g.owner_id !== currentUser.id) $("addMemberForm").classList.add("hidden");
+        let action = "";
+
+        // El propietario puede expulsar a cualquier otro miembro.
+        if (isOwner && !isMemberOwner) {
+          action = `<button class="btn danger small-btn"
+            onclick="removeMember('${g.id}','${m.user_id}')">Expulsar</button>`;
+        }
+
+        return `<div class="expense-item member-row">
+          <div class="avatar">${escapeHTML((m.display_name || "?")[0].toUpperCase())}</div>
+          <div class="expense-info">
+            <strong>${escapeHTML(m.display_name || "Miembro")}${isMe ? " (Tú)" : ""}</strong>
+            <span>${isMemberOwner ? "Propietario" : "Miembro"}</span>
+          </div>
+          <div class="member-actions">${action}</div>
+        </div>`;
+      }).join("")
+    : '<p>No se encontraron miembros.</p>';
+
+  $("deleteGroupButton").classList.toggle("hidden", !isOwner);
+  $("addMemberButton").classList.toggle("hidden", !isOwner);
+  $("leaveGroupButton").classList.toggle("hidden", isOwner);
+  $("groupActionHelp").textContent = isOwner
+    ? "Como propietario, puedes añadir o expulsar miembros y eliminar el grupo."
+    : "Puedes abandonar este grupo cuando quieras. El propietario no puede ser expulsado.";
+
+  if (!isOwner) {
+    $("addMemberForm").classList.add("hidden");
+  }
 }
 
 // AÑADIR MIEMBROS
 function showAddMember() {
   if (!currentUser || !currentGroupId) return;
+
   const g = groups.find(x => x.id === currentGroupId);
+
   if (!g || g.owner_id !== currentUser.id) {
     return showMessage("Solo el propietario puede añadir miembros.", "error");
   }
+
   $("addMemberForm").classList.remove("hidden");
   clearMessage("addMemberMessage");
   $("memberEmail").focus();
@@ -816,52 +965,172 @@ function hideAddMember() {
 
 async function addMember() {
   if (!currentUser || !currentGroupId) return;
+
   const g = groups.find(x => x.id === currentGroupId);
+
   if (!g || g.owner_id !== currentUser.id) {
     return showMessage("Solo el propietario puede añadir miembros.", "error");
   }
 
   const email = $("memberEmail").value.trim().toLowerCase();
+
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return showMessage("Introduce un correo electrónico válido.", "error", "addMemberMessage");
+    return showMessage(
+      "Introduce un correo electrónico válido.",
+      "error",
+      "addMemberMessage"
+    );
   }
 
   setBusy(true);
+
   try {
     const { error } = await db.rpc("add_group_member", {
       target_group_id: currentGroupId,
       target_email: email
     });
+
     if (error) throw error;
 
     $("memberEmail").value = "";
     $("addMemberForm").classList.add("hidden");
+
     await loadData();
     renderGroupDetail(currentGroupId);
+
     showMessage("Miembro añadido correctamente.");
   } catch (e) {
-    showMessage("No se pudo añadir al miembro: " + e.message, "error", "addMemberMessage");
+    showMessage(
+      "No se pudo añadir al miembro: " + e.message,
+      "error",
+      "addMemberMessage"
+    );
   } finally {
     setBusy(false);
   }
 }
 
-async function deleteGroup() {
-  const g = groups.find(x => x.id === currentGroupId);
-  if (!g || g.owner_id !== currentUser.id) return showMessage("Solo el propietario puede eliminar este grupo.", "error");
-  if (!confirm("¿Eliminar este grupo y sus gastos? Esta acción no se puede deshacer.")) return;
+// EXPULSAR A UN MIEMBRO
+async function removeMember(groupId, userId) {
+  if (!currentUser) return showScreen("auth");
+
+  const g = groups.find(x => x.id === groupId);
+
+  if (!g || g.owner_id !== currentUser.id) {
+    return showMessage("Solo el propietario puede expulsar miembros.", "error");
+  }
+
+  const member = groupMembers(groupId).find(m => m.user_id === userId);
+
+  if (!member) {
+    return showMessage("No se ha encontrado a ese miembro.", "error");
+  }
+
+  if (userId === g.owner_id) {
+    return showMessage("No puedes expulsar al propietario del grupo.", "error");
+  }
+
+  const memberName = member.display_name || "este miembro";
+
+  if (!confirm(`¿Quieres expulsar a ${memberName} del grupo "${g.name}"?`)) {
+    return;
+  }
 
   setBusy(true);
+
+  try {
+    const { error } = await db.rpc("remove_group_member", {
+      target_group_id: groupId,
+      target_user_id: userId
+    });
+
+    if (error) throw error;
+
+    await loadData();
+
+    if (currentGroupId) renderGroupDetail(currentGroupId);
+
+    showMessage(`${memberName} ha sido expulsado del grupo.`);
+  } catch (e) {
+    showMessage("No se pudo expulsar al miembro: " + e.message, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+// ABANDONAR UN GRUPO COMO INVITADO
+async function leaveGroup(groupId) {
+  if (!currentUser) return showScreen("auth");
+
+  const g = groups.find(x => x.id === groupId);
+
+  if (!g) {
+    return showMessage("No se ha encontrado el grupo.", "error");
+  }
+
+  if (g.owner_id === currentUser.id) {
+    return showMessage(
+      "El propietario no puede abandonar su grupo. Puedes eliminarlo si lo deseas.",
+      "error"
+    );
+  }
+
+  if (!confirm(`¿Seguro que quieres abandonar el grupo "${g.name}"?`)) {
+    return;
+  }
+
+  setBusy(true);
+
+  try {
+    const { error } = await db.rpc("remove_group_member", {
+      target_group_id: groupId,
+      target_user_id: currentUser.id
+    });
+
+    if (error) throw error;
+
+    currentGroupId = null;
+
+    await loadData();
+    showScreen("groups");
+
+    showMessage(`Has abandonado el grupo "${g.name}".`);
+  } catch (e) {
+    showMessage("No se pudo abandonar el grupo: " + e.message, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+// ELIMINAR GRUPO
+async function deleteGroup() {
+  const g = groups.find(x => x.id === currentGroupId);
+
+  if (!g || g.owner_id !== currentUser.id) {
+    return showMessage("Solo el propietario puede eliminar este grupo.", "error");
+  }
+
+  if (!confirm("¿Eliminar este grupo y sus gastos? Esta acción no se puede deshacer.")) {
+    return;
+  }
+
+  setBusy(true);
+
   try {
     let result = await db.from("expenses").delete().eq("group_id", currentGroupId);
     if (result.error) throw result.error;
+
     result = await db.from("group_members").delete().eq("group_id", currentGroupId);
     if (result.error) throw result.error;
+
     result = await db.from("groups").delete().eq("id", currentGroupId);
     if (result.error) throw result.error;
+
     currentGroupId = null;
+
     await loadData();
     showScreen("groups");
+
     showMessage("Grupo eliminado.");
   } catch (e) {
     showMessage("No se pudo eliminar el grupo: " + e.message, "error");
@@ -873,8 +1142,11 @@ async function deleteGroup() {
 // GASTOS
 function openNewExpense(id = null) {
   if (!currentUser) return showScreen("auth");
+
   populateExpenseGroups();
+
   if (id) $("expenseGroup").value = id;
+
   updatePayerOptions();
   showScreen("newExpense");
 }
@@ -882,38 +1154,55 @@ function openNewExpense(id = null) {
 function populateExpenseGroups() {
   const select = $("expenseGroup");
   const previous = select.value;
+
   select.innerHTML = groups.map(g =>
     `<option value="${g.id}">${escapeHTML(g.emoji || "👥")} ${escapeHTML(g.name)}</option>`
   ).join("");
 
-  if (!groups.length) select.innerHTML = '<option value="">Primero crea un grupo</option>';
-  else if (groups.some(g => g.id === previous)) select.value = previous;
-  else if (currentGroupId && groups.some(g => g.id === currentGroupId)) select.value = currentGroupId;
+  if (!groups.length) {
+    select.innerHTML = '<option value="">Primero crea un grupo</option>';
+  } else if (groups.some(g => g.id === previous)) {
+    select.value = previous;
+  } else if (currentGroupId && groups.some(g => g.id === currentGroupId)) {
+    select.value = currentGroupId;
+  }
+
   updatePayerOptions();
 }
 
 function updatePayerOptions() {
   const id = $("expenseGroup").value;
   const ms = groupMembers(id);
+
   $("expensePayer").innerHTML = ms.map(m =>
     `<option value="${m.user_id}">${escapeHTML(m.display_name || "Miembro")}</option>`
   ).join("");
-  if (!ms.length) $("expensePayer").innerHTML = '<option value="">No hay miembros</option>';
-  else if (ms.some(m => m.user_id === currentUser?.id)) $("expensePayer").value = currentUser.id;
+
+  if (!ms.length) {
+    $("expensePayer").innerHTML = '<option value="">No hay miembros</option>';
+  } else if (ms.some(m => m.user_id === currentUser?.id)) {
+    $("expensePayer").value = currentUser.id;
+  }
 }
 
 async function createExpense() {
   if (!currentUser) return showScreen("auth");
+
   const title = $("expenseName").value.trim();
   const amount = Number($("expenseAmount").value);
   const groupId = $("expenseGroup").value;
   const payerId = $("expensePayer").value;
 
   if (!title) return showMessage("Escribe el concepto del gasto.", "error");
-  if (!Number.isFinite(amount) || amount <= 0) return showMessage("Introduce un importe válido.", "error");
-  if (!groupId || !payerId) return showMessage("Selecciona un grupo y quién pagó.", "error");
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return showMessage("Introduce un importe válido.", "error");
+  }
+  if (!groupId || !payerId) {
+    return showMessage("Selecciona un grupo y quién pagó.", "error");
+  }
 
   setBusy(true);
+
   try {
     const { error } = await db.from("expenses").insert({
       group_id: groupId,
@@ -922,13 +1211,16 @@ async function createExpense() {
       payer_id: payerId,
       created_by: currentUser.id
     });
+
     if (error) throw error;
 
     $("expenseName").value = "";
     $("expenseAmount").value = "";
+
     await loadData();
-    showMessage("Gasto guardado correctamente.");
+
     openGroup(groupId);
+    showMessage("Gasto guardado correctamente.");
   } catch (e) {
     showMessage("No se pudo guardar el gasto: " + e.message, "error");
   } finally {
@@ -939,20 +1231,32 @@ async function createExpense() {
 // PERFIL
 async function saveProfile() {
   if (!currentUser) return;
+
   const name = $("profileName").value.trim();
+
   if (!name) return showMessage("Escribe tu nombre.", "error");
 
   setBusy(true);
+
   try {
-    const { data, error } = await db.auth.updateUser({ data: { display_name: name } });
+    const { data, error } = await db.auth.updateUser({
+      data: { display_name: name }
+    });
+
     if (error) throw error;
+
     currentUser = data.user;
     currentProfileName = name;
+
     memberships = memberships.map(m =>
-      m.user_id === currentUser.id ? { ...m, display_name: name } : m
+      m.user_id === currentUser.id
+        ? { ...m, display_name: name }
+        : m
     );
+
     $("topAvatar").textContent = name[0].toUpperCase();
     $("welcomeText").textContent = "¡Hola, " + name + "!";
+
     renderAll();
     showMessage("Nombre actualizado.");
   } catch (e) {
@@ -968,14 +1272,20 @@ async function init() {
     showScreen("auth");
     return;
   }
+
   $("authNameGroup").classList.remove("hidden");
+
   const { data, error } = await db.auth.getSession();
+
   if (error) showMessage(error.message, "error");
+
   await handleSession(data?.session);
+
   db.auth.onAuthStateChange((event, session) => {
     setTimeout(() => handleSession(session), 0);
   });
 }
+
 init();
 </script>
 </body>
