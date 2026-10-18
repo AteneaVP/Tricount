@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#6759e8">
+<title>TriCount</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+:root {
+  --primary: #6759e8;
+  --dark: #5143ce;
+  --bg: #f6f7fb;
+  --text: #202238;
+  --muted: #777b91;
+  --border: #e8e9f1;
+  --green: #159b69;
+  --red: #df5267;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+button, input, select { font: inherit; }
+button { cursor: pointer; }
+.app {
+  max-width: 680px;
+  min-height: 100vh;
+  margin: auto;
+  padding: 22px 18px 100px;
+}
+.topbar, .row, .section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.topbar { margin-bottom: 25px; }
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 24px;
+  font-weight: 850;
+}
+.brand-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 15px;
+  background: var(--primary);
+  color: white;
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #e9e5ff;
+  color: var(--dark);
+  font-weight: 800;
+  border: 0;
+  flex-shrink: 0;
+}
+.screen { display: none; }
+.screen.active { display: block; }
+h1 { font-size: 29px; margin: 0 0 8px; }
+h2 { font-size: 20px; margin: 0 0 15px; }
+p { color: var(--muted); line-height: 1.5; }
+.small { font-size: 13px; }
+.card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 19px;
+  margin: 15px 0;
+}
+.hero {
+  padding: 24px;
+  color: white;
+  border-radius: 25px;
+  background: linear-gradient(135deg, #7568f2, #5144cd);
+  margin-bottom: 25px;
+}
+.hero p { color: #e5e1ff; }
+.balance { font-size: 35px; font-weight: 850; }
+.section-heading { margin: 25px 0 12px; }
+.section-heading h2 { margin: 0; }
+.btn {
+  border: 0;
+  border-radius: 14px;
+  padding: 13px 16px;
+  font-weight: 750;
+  background: var(--primary);
+  color: white;
+}
+.btn.secondary { background: #efedff; color: var(--dark); }
+.btn.ghost { background: transparent; color: var(--muted); }
+.btn.danger { background: #fff0f2; color: var(--red); }
+.btn.full { width: 100%; }
+.btn.small-btn { padding: 9px 12px; font-size: 13px; }
+.form-group { margin: 16px 0; }
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 750;
+  margin-bottom: 8px;
+}
+input, select {
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--border);
+  background: white;
+  border-radius: 13px;
+  outline: none;
+  color: var(--text);
+}
+input:focus, select:focus {
+  border-color: var(--primary);
+}
+.group-item {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.group-emoji {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  border-radius: 17px;
+  background: #f0eeff;
+  font-size: 25px;
+}
+.group-info { flex: 1; min-width: 0; }
+.group-info strong { display: block; margin-bottom: 5px; }
+.group-info span { font-size: 13px; color: var(--muted); }
+.amount { font-weight: 800; white-space: nowrap; }
+.positive { color: var(--green); }
+.negative { color: var(--red); }
+.expense-item {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.expense-icon {
+  display: grid;
+  place-items: center;
+  background: #f2f0ff;
+  border-radius: 13px;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+.expense-info { flex: 1; min-width: 0; }
+.expense-info strong { display: block; }
+.expense-info span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+.bottom-nav {
+  position: fixed;
+  z-index: 10;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 680px);
+  display: flex;
+  justify-content: space-around;
+  padding: 10px 8px calc(10px + env(safe-area-inset-bottom));
+  background: #ffffffed;
+  border-top: 1px solid var(--border);
+}
+.nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 5px 12px;
+}
+.nav-btn.active { color: var(--primary); font-weight: 800; }
+.empty { text-align: center; padding: 25px 10px; }
+.empty .emoji { font-size: 38px; }
+.notice {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f0efff;
+  color: var(--dark);
+  font-size: 13px;
+  margin: 12px 0;
+  overflow-wrap: anywhere;
+}
+.notice.error { background: #fff0f2; color: #b52f48; }
+.notice.success { background: #e8f8f0; color: #08784d; }
+.back-btn {
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  padding: 0 0 20px;
+  font-weight: 750;
+}
+.emoji-options { display: flex; gap: 8px; flex-wrap: wrap; }
+.emoji-option {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 9px 11px;
+  background: white;
+  font-size: 22px;
+}
+.emoji-option.selected { border-color: var(--primary); background: #efedff; }
+.hidden { display: none !important; }
+.auth-wrap { max-width: 430px; margin: 35px auto; }
+.auth-logo { text-align: center; margin-bottom: 28px; }
+@media(min-width:600px) {
+  .app { padding-top: 30px; }
+  .hero { padding: 30px; }
+}
+</style>
+</head>
+
+<body>
+<div class="app">
+
+<header class="topbar">
+  <div class="brand"><div class="brand-icon">MV</div>TriCount</div>
+  <button class="avatar" id="topAvatar" onclick="showScreen('profile')">T</button>
+</header>
+
+<div id="globalMessage" class="notice hidden"></div>
+
+<section id="authScreen" class="screen">
+  <div class="auth-wrap">
+    <div class="auth-logo">
+      <div class="brand-icon" style="margin: auto auto 15px">MV</div>
+      <h1>Comparte gastos.<br>Sin complicaciones.</h1>
+      <p>Organiza viajes, pisos y planes con tus amigos.</p>
+    </div>
+    <div class="card">
+      <div id="authMessage" class="notice hidden"></div>
+      <div class="form-group">
+        <label for="authEmail">Correo electrónico</label>
+        <input id="authEmail" type="email" autocomplete="email" placeholder="tu@email.com">
+      </div>
+      <div class="form-group">
+        <label for="authPassword">Contraseña</label>
+        <input id="authPassword" type="password" autocomplete="current-password" placeholder="Mínimo 6 caracteres">
+      </div>
+      <div class="form-group hidden" id="authNameGroup">
+        <label for="authName">Tu nombre</label>
+        <input id="authName" autocomplete="name" placeholder="¿Cómo te llamas?">
+      </div>
+      <button class="btn full" onclick="login()">Iniciar sesión</button>
+      <button class="btn secondary full" style="margin-top:10px" onclick="signup()">Crear cuenta</button>
+      <button class="btn ghost full" onclick="resetPassword()">He olvidado mi contraseña</button>
+    </div>
+  </div>
+</section>
+
+<section id="homeScreen" class="screen">
+  <div class="hero">
+    <p>Tu balance total</p>
+    <div class="balance" id="totalBalance">0,00 €</div>
+    <p id="welcomeText">¡Bienvenido a TrioCount!</p>
+    <button class="btn" style="background:white;color:#5143ce" onclick="openNewExpense()">+ Añadir gasto</button>
+  </div>
+  <div class="section-heading">
+    <h2>Tus grupos</h2>
+    <button class="btn secondary small-btn" onclick="showScreen('groups')">Ver todos</button>
+  </div>
+  <div class="card" id="homeGroups"></div>
+  <div class="section-heading"><h2>Últimos movimientos</h2></div>
+  <div class="card" id="homeExpenses"></div>
+</section>
+
+<section id="groupsScreen" class="screen">
+  <div class="section-heading">
+    <h1>Tus grupos</h1>
+    <button class="btn small-btn" onclick="showScreen('newGroup')">+ Crear</button>
+  </div>
+  <p>Todos tus planes en un mismo lugar.</p>
+  <div class="card" id="groupsList"></div>
+</section>
+
+<section id="activityScreen" class="screen">
+  <h1>Actividad</h1>
+  <p>Todos los gastos de tus grupos.</p>
+  <div class="card" id="activityList"></div>
+</section>
+
+<section id="profileScreen" class="screen">
+  <h1>Tu perfil</h1>
+  <p>Gestiona tu cuenta de TrioCount.</p>
+  <div class="card">
+    <div class="form-group">
+      <label for="profileName">Tu nombre</label>
+      <input id="profileName" placeholder="Tu nombre">
+    </div>
+    <div class="form-group">
+      <label for="profileEmail">Correo electrónico</label>
+      <input id="profileEmail" type="email" disabled>
+    </div>
+    <button class="btn full" onclick="saveProfile()">Guardar nombre</button>
+  </div>
+  <div class="card">
+    <h2>Tu cuenta</h2>
+    <button class="btn danger full" onclick="logout()">Cerrar sesión</button>
+  </div>
+</section>
+
+<section id="newGroupScreen" class="screen">
+  <button class="back-btn" onclick="showScreen('groups')">← Volver a grupos</button>
+  <h1>Crear un grupo</h1>
+  <p>Un viaje, un piso compartido o cualquier plan.</p>
+  <div class="card">
+    <div class="form-group">
+      <label for="groupName">Nombre del grupo</label>
+      <input id="groupName" maxlength="80" placeholder="Ej. Viaje a Lisboa">
+    </div>
+    <div class="form-group">
+      <label>Elige un emoji</label>
+      <div class="emoji-options">
+        <button class="emoji-option selected" data-emoji="✈️" onclick="chooseEmoji('✈️')">✈️</button>
+        <button class="emoji-option" data-emoji="🏠" onclick="chooseEmoji('🏠')">🏠</button>
+        <button class="emoji-option" data-emoji="🎉" onclick="chooseEmoji('🎉')">🎉</button>
+        <button class="emoji-option" data-emoji="🍕" onclick="chooseEmoji('🍕')">🍕</button>
+        <button class="emoji-option" data-emoji="🚗" onclick="chooseEmoji('🚗')">🚗</button>
+        <button class="emoji-option" data-emoji="🏖️" onclick="chooseEmoji('🏖️')">🏖️</button>
+        <button class="emoji-option" data-emoji="💑" onclick="chooseEmoji('💑')">💑</button>
+        <button class="emoji-option" data-emoji="💼" onclick="chooseEmoji('💼')">💼</button>
+      </div>
+    </div>
+    <button class="btn full" onclick="createGroup()">Crear grupo</button>
+  </div>
+</section>
+
+<section id="newExpenseScreen" class="screen">
+  <button class="back-btn" onclick="showScreen('home')">← Volver</button>
+  <h1>Añadir un gasto</h1>
+  <p>Registra quién pagó y cuánto costó.</p>
+  <div class="card">
+    <div class="form-group">
+      <label for="expenseName">Concepto</label>
+      <input id="expenseName" maxlength="120" placeholder="Ej. Compra del supermercado">
+    </div>
+    <div class="form-group">
+      <label for="expenseAmount">Importe (€)</label>
+      <input id="expenseAmount" type="number" min="0.01" step="0.01" placeholder="0,00">
+    </div>
+    <div class="form-group">
+      <label for="expenseGroup">Grupo</label>
+      <select id="expenseGroup" onchange="updatePayerOptions()"></select>
+    </div>
+    <div class="form-group">
+      <label for="expensePayer">¿Quién pagó?</label>
+      <select id="expensePayer"></select>
+    </div>
+    <button class="btn full" onclick="createExpense()">Guardar gasto</button>
+  </div>
+</section>
+
+<section id="groupDetailScreen" class="screen">
+  <button class="back-btn" onclick="showScreen('groups')">← Volver a grupos</button>
+  <div class="row">
+    <div>
+      <div id="detailEmoji" style="font-size:42px">✈️</div>
+      <h1 id="detailName">Grupo</h1>
+      <p id="detailMeta" class="small"></p>
+    </div>
+    <button class="btn small-btn" onclick="openNewExpense(currentGroupId)">+ Gasto</button>
+  </div>
+  <div class="card">
+    <h2>Gastos del grupo</h2>
+    <div id="detailExpenses"></div>
+  </div>
+
+  <!-- MIEMBROS: incluye el botón Añadir -->
+  <div class="card">
+    <div class="row">
+      <h2>Miembros</h2>
+      <button class="btn secondary small-btn" id="addMemberButton" onclick="showAddMember()">+ Añadir</button>
+    </div>
+    <div id="detailMembers"></div>
+    <div id="addMemberForm" class="hidden">
+      <div class="form-group">
+        <label for="memberEmail">Correo electrónico del usuario</label>
+        <input id="memberEmail" type="email" placeholder="amigo@email.com" autocomplete="email">
+      </div>
+      <div id="addMemberMessage" class="notice hidden"></div>
+      <button class="btn full" onclick="addMember()">Añadir al grupo</button>
+      <button class="btn ghost full" style="margin-top:5px" onclick="hideAddMember()">Cancelar</button>
+    </div>
+  </div>
+
+  <button class="btn danger full" id="deleteGroupButton" onclick="deleteGroup()">Eliminar grupo</button>
+  <p class="small">Solo el propietario puede eliminar el grupo.</p>
+</section>
+</div>
+
+<nav class="bottom-nav hidden" id="bottomNav">
+  <button class="nav-btn active" data-screen="home" onclick="showScreen('home')"><span>⌂</span><span>Inicio</span></button>
+  <button class="nav-btn" data-screen="groups" onclick="showScreen('groups')"><span>◫</span><span>Grupos</span></button>
+  <button class="nav-btn" data-screen="activity" onclick="showScreen('activity')"><span>↗</span><span>Actividad</span></button>
+  <button class="nav-btn" data-screen="profile" onclick="showScreen('profile')"><span>○</span><span>Perfil</span></button>
+</nav>
+
+<script>
+// CONFIGURACIÓN SUPABASE
+const SUPABASE_URL = "https://spylscxfjfwlkqfiadme.supabase.co";
+const SUPABASE_KEY = "sb_publishable_aTl7NmeefT8NNZLPfm4EQw_FdY_AVfE";
+
+let db = null;
+let currentUser = null;
+let currentProfileName = "";
+let selectedEmoji = "✈️";
+let currentGroupId = null;
+let groups = [];
+let expenses = [];
+let memberships = [];
+let loading = false;
+
+const $ = id => document.getElementById(id);
+
+function money(value) {
+  return new Intl.NumberFormat("es-ES", {
+    style: "currency", currency: "EUR"
+  }).format(Number(value) || 0);
+}
+
+function escapeHTML(value) {
+  return String(value ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  })[c]);
+}
+
+function showMessage(message, type = "success", target = "globalMessage") {
+  const el = $(target);
+  if (!el) return;
+  el.textContent = message;
+  el.className = "notice" + (type === "error" ? " error" : type === "success" ? " success" : "");
+  el.classList.remove("hidden");
+  if (target === "globalMessage") setTimeout(() => el.classList.add("hidden"), 6000);
+}
+
+function clearMessage(target = "globalMessage") {
+  if ($(target)) $(target).classList.add("hidden");
+}
+
+function setBusy(value) {
+  loading = value;
+  document.querySelectorAll("button").forEach(button => {
+    button.disabled = value;
+    button.style.opacity = value ? "0.65" : "";
+  });
+}
+
+function showScreen(name) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  if ($(name + "Screen")) $(name + "Screen").classList.add("active");
+  $("bottomNav").classList.toggle("hidden", name === "auth" || !currentUser);
+  document.querySelectorAll(".nav-btn").forEach(button =>
+    button.classList.toggle("active", button.dataset.screen === name)
+  );
+  clearMessage();
+
+  if (name === "profile" && currentUser) {
+    $("profileName").value = currentProfileName;
+    $("profileEmail").value = currentUser.email || "";
+  }
+  if (name === "newExpense") populateExpenseGroups();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function requireSupabase() {
+  if (!window.supabase?.createClient) {
+    showMessage("No se pudo cargar Supabase. Comprueba tu conexión.", "error");
+    return false;
+  }
+  if (!db) db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  return true;
+}
+
+// AUTENTICACIÓN
+async function signup() {
+  if (!requireSupabase()) return;
+  const email = $("authEmail").value.trim();
+  const password = $("authPassword").value;
+  const name = $("authName").value.trim();
+
+  if (!email || !password) return showMessage("Introduce tu correo y contraseña.", "error", "authMessage");
+  if (password.length < 6) return showMessage("La contraseña debe tener al menos 6 caracteres.", "error", "authMessage");
+
+  setBusy(true);
+  try {
+    const { data, error } = await db.auth.signUp({
+      email, password,
+      options: { data: { display_name: name || email.split("@")[0] } }
+    });
+    if (error) throw error;
+    if (data.session) await handleSession(data.session);
+    else showMessage("Cuenta creada. Revisa tu correo para confirmar el registro y después inicia sesión.", "success", "authMessage");
+  } catch (e) {
+    showMessage(e.message, "error", "authMessage");
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function login() {
+  if (!requireSupabase()) return;
+  const email = $("authEmail").value.trim();
+  const password = $("authPassword").value;
+  if (!email || !password) return showMessage("Introduce tu correo y contraseña.", "error", "authMessage");
+
+  setBusy(true);
+  try {
+    const { data, error } = await db.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    await handleSession(data.session);
+  } catch (e) {
+    showMessage(e.message, "error", "authMessage");
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function resetPassword() {
+  if (!requireSupabase()) return;
+  const email = $("authEmail").value.trim();
+  if (!email) return showMessage("Escribe tu correo primero.", "error", "authMessage");
+
+  setBusy(true);
+  try {
+    const { error } = await db.auth.resetPasswordForEmail(email, {
+      redirectTo: location.href.split("#")[0]
+    });
+    if (error) throw error;
+    showMessage("Si el correo está registrado, recibirás instrucciones para cambiar la contraseña.", "success", "authMessage");
+  } catch (e) {
+    showMessage(e.message, "error", "authMessage");
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function logout() {
+  if (!db) return;
+  const { error } = await db.auth.signOut();
+  if (error) return showMessage(error.message, "error");
+  currentUser = null;
+  currentGroupId = null;
+  groups = [];
+  expenses = [];
+  memberships = [];
+  showScreen("auth");
+}
+
+async function handleSession(session) {
+  currentUser = session?.user || null;
+  if (!currentUser) {
+    groups = [];
+    expenses = [];
+    memberships = [];
+    showScreen("auth");
+    return;
+  }
+
+  currentProfileName = currentUser.user_metadata?.display_name ||
+    currentUser.email?.split("@")[0] || "Usuario";
+  $("topAvatar").textContent = (currentProfileName[0] || "T").toUpperCase();
+  $("welcomeText").textContent = "¡Hola, " + currentProfileName + "!";
+  showScreen("home");
+  await loadData();
+}
+
+// CARGA DE DATOS: carga las membresías de todos los miembros de tus grupos.
+async function loadData() {
+  if (!currentUser || !db || loading) return;
+  setBusy(true);
+
+  try {
+    const { data: myRows, error: myError } = await db
+      .from("group_members")
+      .select("group_id,user_id,display_name,joined_at")
+      .eq("user_id", currentUser.id);
+    if (myError) throw myError;
+
+    const groupIds = [...new Set((myRows || []).map(row => row.group_id))];
+
+    if (!groupIds.length) {
+      memberships = [];
+      groups = [];
+      expenses = [];
+      renderAll();
+      return;
+    }
+
+    const { data: memberRows, error: memberError } = await db
+      .from("group_members")
+      .select("group_id,user_id,display_name,joined_at")
+      .in("group_id", groupIds);
+    if (memberError) throw memberError;
+    memberships = memberRows || [];
+
+    const { data: groupRows, error: groupError } = await db
+      .from("groups")
+      .select("id,name,emoji,owner_id,created_at")
+      .in("id", groupIds)
+      .order("created_at", { ascending: false });
+    if (groupError) throw groupError;
+    groups = groupRows || [];
+
+    const { data: expenseRows, error: expenseError } = await db
+      .from("expenses")
+      .select("id,group_id,title,amount,payer_id,created_by,created_at")
+      .in("group_id", groupIds)
+      .order("created_at", { ascending: false });
+    if (expenseError) throw expenseError;
+    expenses = expenseRows || [];
+
+    renderAll();
+  } catch (e) {
+    showMessage("Error al cargar datos: " + e.message, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+function renderAll() {
+  renderHome();
+  renderGroups();
+  renderActivity();
+  if (currentGroupId) renderGroupDetail(currentGroupId);
+}
+
+function groupExpenses(id) {
+  return expenses.filter(e => e.group_id === id);
+}
+
+function groupMembers(id) {
+  return memberships.filter(m => m.group_id === id);
+}
+
+function myGroupBalance(id) {
+  const members = groupMembers(id);
+  const rows = groupExpenses(id);
+  if (!members.length) return 0;
+  const total = rows.reduce((sum, e) => sum + Number(e.amount), 0);
+  const paid = rows.filter(e => e.payer_id === currentUser.id)
+    .reduce((sum, e) => sum + Number(e.amount), 0);
+  return paid - total / members.length;
+}
+
+function renderHome() {
+  const balance = groups.reduce((sum, g) => sum + myGroupBalance(g.id), 0);
+  $("totalBalance").textContent = money(balance);
+  $("totalBalance").className = "balance " + (balance >= 0 ? "" : "negative");
+
+  $("homeGroups").innerHTML = groups.length
+    ? groups.slice(0, 4).map(groupCard).join("")
+    : emptyState("🧳", "Empieza creando un grupo", "Organiza tus gastos con amigos.", "showScreen('newGroup')");
+
+  $("homeExpenses").innerHTML = expenses.length
+    ? expenses.slice(0, 5).map(expenseCard).join("")
+    : emptyState("🧾", "Aún no hay gastos", "Añade el primer gasto de tu grupo.", "openNewExpense()");
+}
+
+function renderGroups() {
+  $("groupsList").innerHTML = groups.length
+    ? groups.map(groupCard).join("")
+    : emptyState("👥", "Todavía no tienes grupos", "Crea un grupo para empezar.", "showScreen('newGroup')");
+}
+
+function renderActivity() {
+  $("activityList").innerHTML = expenses.length
+    ? expenses.map(expenseCard).join("")
+    : emptyState("📊", "Sin actividad", "Tus gastos aparecerán aquí.", "openNewExpense()");
+}
+
+function groupCard(g) {
+  const count = groupMembers(g.id).length;
+  const balance = myGroupBalance(g.id);
+  return `<div class="group-item" onclick="openGroup('${g.id}')">
+    <div class="group-emoji">${escapeHTML(g.emoji || "👥")}</div>
+    <div class="group-info"><strong>${escapeHTML(g.name)}</strong>
+    <span>${count} miembro${count === 1 ? "" : "s"} · ${groupExpenses(g.id).length} gastos</span></div>
+    <div class="amount ${balance >= 0 ? "positive" : "negative"}">${money(balance)}</div>
+  </div>`;
+}
+
+function expenseCard(e) {
+  const g = groups.find(x => x.id === e.group_id);
+  const payer = groupMembers(e.group_id).find(m => m.user_id === e.payer_id);
+  const payerName = payer?.display_name ||
+    (e.payer_id === currentUser?.id ? currentProfileName : "Miembro");
+  const date = new Date(e.created_at).toLocaleDateString("es-ES", {
+    day: "numeric", month: "short"
+  });
+  return `<div class="expense-item">
+    <div class="expense-icon">🧾</div>
+    <div class="expense-info"><strong>${escapeHTML(e.title)}</strong>
+    <span>${escapeHTML(g?.name || "Grupo")} · Pagó ${escapeHTML(payerName)} · ${date}</span></div>
+    <div class="amount">${money(e.amount)}</div>
+  </div>`;
+}
+
+function emptyState(emoji, title, description, action) {
+  return `<div class="empty"><div class="emoji">${emoji}</div>
+    <h3>${escapeHTML(title)}</h3><p>${escapeHTML(description)}</p>
+    <button class="btn secondary small-btn" onclick="${action}">Empezar</button></div>`;
+}
+
+// CREAR GRUPO
+function chooseEmoji(emoji) {
+  selectedEmoji = emoji;
+  document.querySelectorAll(".emoji-option").forEach(b =>
+    b.classList.toggle("selected", b.dataset.emoji === emoji)
+  );
+}
+
+async function createGroup() {
+  if (!currentUser) return showScreen("auth");
+  const name = $("groupName").value.trim();
+  if (!name) return showMessage("Escribe un nombre para el grupo.", "error");
+
+  setBusy(true);
+  try {
+    const { data, error } = await db.rpc("create_group", {
+      group_name: name,
+      group_emoji: selectedEmoji
+    });
+    if (error) throw error;
+
+    $("groupName").value = "";
+    const id = typeof data === "string" ? data : data?.id;
+    await loadData();
+    if (id) currentGroupId = id;
+    showMessage("Grupo creado correctamente.");
+    if (currentGroupId) openGroup(currentGroupId);
+    else showScreen("groups");
+  } catch (e) {
+    showMessage("No se pudo crear el grupo. Comprueba que existe la función SQL create_group. " + e.message, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+// DETALLE DEL GRUPO
+function openGroup(id) {
+  currentGroupId = id;
+  renderGroupDetail(id);
+  showScreen("groupDetail");
+}
+
+function renderGroupDetail(id) {
+  const g = groups.find(x => x.id === id);
+  if (!g) return;
+
+  $("detailEmoji").textContent = g.emoji || "👥";
+  $("detailName").textContent = g.name;
+  $("detailMeta").textContent = groupMembers(id).length + " miembros · " + groupExpenses(id).length + " gastos";
+
+  const es = groupExpenses(id);
+  $("detailExpenses").innerHTML = es.length
+    ? es.map(expenseCard).join("")
+    : '<div class="empty"><div class="emoji">🧾</div><p>Aún no hay gastos en este grupo.</p></div>';
+
+  const ms = groupMembers(id);
+  $("detailMembers").innerHTML = ms.length
+    ? ms.map(m => `<div class="expense-item">
+        <div class="avatar">${escapeHTML((m.display_name || "?")[0].toUpperCase())}</div>
+        <div class="expense-info"><strong>${escapeHTML(m.display_name || "Miembro")}</strong>
+        <span>${m.user_id === g.owner_id ? "Propietario" : "Miembro"}</span></div>
+      </div>`).join("")
+    : '<p class="muted">No se encontraron miembros.</p>';
+
+  $("deleteGroupButton").classList.toggle("hidden", g.owner_id !== currentUser.id);
+  $("addMemberButton").classList.toggle("hidden", g.owner_id !== currentUser.id);
+  if (g.owner_id !== currentUser.id) $("addMemberForm").classList.add("hidden");
+}
+
+// AÑADIR MIEMBROS
+function showAddMember() {
+  if (!currentUser || !currentGroupId) return;
+  const g = groups.find(x => x.id === currentGroupId);
+  if (!g || g.owner_id !== currentUser.id) {
+    return showMessage("Solo el propietario puede añadir miembros.", "error");
+  }
+  $("addMemberForm").classList.remove("hidden");
+  clearMessage("addMemberMessage");
+  $("memberEmail").focus();
+}
+
+function hideAddMember() {
+  $("addMemberForm").classList.add("hidden");
+  $("memberEmail").value = "";
+  clearMessage("addMemberMessage");
+}
+
+async function addMember() {
+  if (!currentUser || !currentGroupId) return;
+  const g = groups.find(x => x.id === currentGroupId);
+  if (!g || g.owner_id !== currentUser.id) {
+    return showMessage("Solo el propietario puede añadir miembros.", "error");
+  }
+
+  const email = $("memberEmail").value.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return showMessage("Introduce un correo electrónico válido.", "error", "addMemberMessage");
+  }
+
+  setBusy(true);
+  try {
+    const { error } = await db.rpc("add_group_member", {
+      target_group_id: currentGroupId,
+      target_email: email
+    });
+    if (error) throw error;
+
+    $("memberEmail").value = "";
+    $("addMemberForm").classList.add("hidden");
+    await loadData();
+    renderGroupDetail(currentGroupId);
+    showMessage("Miembro añadido correctamente.");
+  } catch (e) {
+    showMessage("No se pudo añadir al miembro: " + e.message, "error", "addMemberMessage");
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function deleteGroup() {
+  const g = groups.find(x => x.id === currentGroupId);
+  if (!g || g.owner_id !== currentUser.id) return showMessage("Solo el propietario puede eliminar este grupo.", "error");
+  if (!confirm("¿Eliminar este grupo y sus gastos? Esta acción no se puede deshacer.")) return;
+
+  setBusy(true);
+  try {
+    let result = await db.from("expenses").delete().eq("group_id", currentGroupId);
+    if (result.error) throw result.error;
+    result = await db.from("group_members").delete().eq("group_id", currentGroupId);
+    if (result.error) throw result.error;
+    result = await db.from("groups").delete().eq("id", currentGroupId);
+    if (result.error) throw result.error;
+    currentGroupId = null;
+    await loadData();
+    showScreen("groups");
+    showMessage("Grupo eliminado.");
+  } catch (e) {
+    showMessage("No se pudo eliminar el grupo: " + e.message, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+// GASTOS
+function openNewExpense(id = null) {
+  if (!currentUser) return showScreen("auth");
+  populateExpenseGroups();
+  if (id) $("expenseGroup").value = id;
+  updatePayerOptions();
+  showScreen("newExpense");
+}
+
+function populateExpenseGroups() {
+  const select = $("expenseGroup");
+  const previous = select.value;
+  select.innerHTML = groups.map(g =>
+    `<option value="${g.id}">${escapeHTML(g.emoji || "👥")} ${escapeHTML(g.name)}</option>`
+  ).join("");
+
+  if (!groups.length) select.innerHTML = '<option value="">Primero crea un grupo</option>';
+  else if (groups.some(g => g.id === previous)) select.value = previous;
+  else if (currentGroupId && groups.some(g => g.id === currentGroupId)) select.value = currentGroupId;
+  updatePayerOptions();
+}
+
+function updatePayerOptions() {
+  const id = $("expenseGroup").value;
+  const ms = groupMembers(id);
+  $("expensePayer").innerHTML = ms.map(m =>
+    `<option value="${m.user_id}">${escapeHTML(m.display_name || "Miembro")}</option>`
+  ).join("");
+  if (!ms.length) $("expensePayer").innerHTML = '<option value="">No hay miembros</option>';
+  else if (ms.some(m => m.user_id === currentUser?.id)) $("expensePayer").value = currentUser.id;
+}
+
+async function createExpense() {
+  if (!currentUser) return showScreen("auth");
+  const title = $("expenseName").value.trim();
+  const amount = Number($("expenseAmount").value);
+  const groupId = $("expenseGroup").value;
+  const payerId = $("expensePayer").value;
+
+  if (!title) return showMessage("Escribe el concepto del gasto.", "error");
+  if (!Number.isFinite(amount) || amount <= 0) return showMessage("Introduce un importe válido.", "error");
+  if (!groupId || !payerId) return showMessage("Selecciona un grupo y quién pagó.", "error");
+
+  setBusy(true);
+  try {
+    const { error } = await db.from("expenses").insert({
+      group_id: groupId,
+      title,
+      amount,
+      payer_id: payerId,
+      created_by: currentUser.id
+    });
+    if (error) throw error;
+
+    $("expenseName").value = "";
+    $("expenseAmount").value = "";
+    await loadData();
+    showMessage("Gasto guardado correctamente.");
+    openGroup(groupId);
+  } catch (e) {
+    showMessage("No se pudo guardar el gasto: " + e.message, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+// PERFIL
+async function saveProfile() {
+  if (!currentUser) return;
+  const name = $("profileName").value.trim();
+  if (!name) return showMessage("Escribe tu nombre.", "error");
+
+  setBusy(true);
+  try {
+    const { data, error } = await db.auth.updateUser({ data: { display_name: name } });
+    if (error) throw error;
+    currentUser = data.user;
+    currentProfileName = name;
+    memberships = memberships.map(m =>
+      m.user_id === currentUser.id ? { ...m, display_name: name } : m
+    );
+    $("topAvatar").textContent = name[0].toUpperCase();
+    $("welcomeText").textContent = "¡Hola, " + name + "!";
+    renderAll();
+    showMessage("Nombre actualizado.");
+  } catch (e) {
+    showMessage("No se pudo guardar el perfil: " + e.message, "error");
+  } finally {
+    setBusy(false);
+  }
+}
+
+// INICIO
+async function init() {
+  if (!requireSupabase()) {
+    showScreen("auth");
+    return;
+  }
+  $("authNameGroup").classList.remove("hidden");
+  const { data, error } = await db.auth.getSession();
+  if (error) showMessage(error.message, "error");
+  await handleSession(data?.session);
+  db.auth.onAuthStateChange((event, session) => {
+    setTimeout(() => handleSession(session), 0);
+  });
+}
+init();
+</script>
+</body>
+</html>
